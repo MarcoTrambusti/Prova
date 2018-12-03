@@ -21,6 +21,7 @@ namespace WindowsFormsApplication1
         private void btnAdd_Click(object sender, EventArgs e)
         {
             arr.Add((int)numericUpDown1.Value);
+            numericUpDown1.Value = 0;
         }
 
         private void btnMax_Click(object sender, EventArgs e)
