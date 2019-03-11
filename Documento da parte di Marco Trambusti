@@ -1,0 +1,155 @@
+#include "pch.h"
+#include <iostream>
+#include <Windows.h>
+#include <process.h>
+#include <string>
+#pragma comment(lib,"ws2_32.lib")
+
+WSADATA WSAData;
+SOCKET externalSock[512];
+
+using namespace std;
+
+unsigned int _stdcall listenServer(void* data)
+{
+	int clientNumber = *(int*)data;
+	while (true)
+	{
+		CHAR bufferrecv[512];
+		if (recv(externalSock[clientNumber], bufferrecv, sizeof(bufferrecv), 0) < 0)
+		{
+			continue;
+		}		
+		cout << "Messaggio Ricevuto: " << bufferrecv << endl;
+	}
+}
+
+int server(int Port) {
+	SOCKET sock;
+	sockaddr_in	saddr;
+
+	if (WSAStartup(MAKEWORD(2, 2), &WSAData))
+	{
+		cout << "Errore nell'inizializzare le winsock./n";
+		return 0;
+	}
+
+	sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+
+	if (sock == INVALID_SOCKET)
+	{
+		cout << "Errore nella creazione del socket./n";
+		WSACleanup();
+		return 0;
+	}
+	saddr.sin_family = AF_INET;
+	saddr.sin_addr.s_addr = 0;
+	saddr.sin_port = htons(Port);
+
+	if (bind(sock, (sockaddr *)&saddr, sizeof(sockaddr_in)))
+	{
+		cout << "Errore la porta e' gia' occupata./n";
+		closesocket(sock);
+		WSACleanup();
+		return 0;
+	}
+
+	if (listen(sock, 8))
+	{
+		closesocket(sock);
+		WSACleanup();
+		return 0;
+	}
+	cout<< "Server in ascolto sulla porta locale " << Port << endl;
+
+	int clientInfoSize = sizeof(struct sockaddr_in);
+	HANDLE clientListeners[512];
+	int clientCount = 0;
+
+	do {
+		sockaddr_in clientInfo;
+		externalSock[clientCount] = accept(sock, (struct sockaddr*)&clientInfo, &clientInfoSize);
+		cout << "Utente connesso: " << inet_ntoa(clientInfo.sin_addr) << ":" << clientInfo.sin_port << endl;
+		int currentCount = clientCount;
+		clientListeners[clientCount] = (HANDLE)_beginthreadex(0, 0, &listenServer, &currentCount, 0, 0);
+		clientCount++;
+	} while (true);
+
+	return 0;
+}
+
+int client(char IpAddress[128], int Port) {
+
+	if (WSAStartup(MAKEWORD(2, 2), &WSAData))
+	{
+		cout << "Errore nell'inizializzare le winsock./n";
+		return 0;
+	}
+
+	SOCKADDR_IN target;
+	target.sin_family = AF_INET;
+	target.sin_port = htons(Port);
+	target.sin_addr.s_addr = inet_addr(IpAddress);
+	externalSock[0] = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+
+	if (externalSock[0] == INVALID_SOCKET)
+	{
+		cout << "Errore nella creazione del socket./n";
+		WSACleanup();
+		return 0;
+	}
+	if (connect(externalSock[0], (SOCKADDR *)&target, sizeof(target)))
+	{
+		cout << "Impossibile connettersi./n";
+		closesocket(externalSock[0]);
+		WSACleanup();
+		return 0;
+	}
+	cout << "Connesso!" << endl;
+
+	while (true){ 
+		Sleep(1000);
+		string var = string("L'utente ");
+		var += to_string(rand() % 1000);
+		var += string(" ha preso in prestito la bici ");
+		var += to_string(rand() % 1000);
+		var += string(" dallo slot ");
+		var += to_string(rand() % 50);
+		char message[512];
+		strcpy_s(message, var.c_str());
+
+		if (send(externalSock[0], message, sizeof(message), 0) == SOCKET_ERROR) {
+			closesocket(externalSock[0]);
+			WSACleanup();
+			return 0;
+		}
+		cout << "Messaggio Inviato" << endl;
+	}
+}
+
+int main()
+{
+	int iScelta = 0;
+	int iPort;
+	cout << "Se vuoi essere server digita 1, altrimenti digita 0\n";
+	cin >> iScelta;
+	switch (iScelta)
+	{
+		case 0:
+			char IpAddress[128];
+			cin.get();
+			cout << "Su che ip vuoi collegarti?\n";
+			cin.getline(IpAddress, 512);
+			cout << "Su che porta vuoi collegarti?\n";
+			cin >> iPort;
+			client(IpAddress, iPort);
+			break;
+		case 1:
+			cout << "Su che porta vuoi operare?\n";
+			cin >> iPort;
+			server(iPort);
+			break;
+		default:
+			return 0;
+	}
+}
